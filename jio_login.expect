@@ -1,0 +1,28 @@
+#!/usr/bin/expect -f
+exec rm /root/.jiotv_go/store.toml
+# Set a timeout (in seconds) for commands that might hang.
+set timeout 10
+
+# Start the `jiotv_go` command.
+spawn jiotv_go login password
+
+# Wait for the phone number prompt and send your phone number.
+expect "Enter your number: "
+send "<enter number>\r"
+
+# Wait for the password prompt and send your password.
+expect "Enter your password: "
+send "<password>\r"
+
+# Look for successful login or other response to confirm the process worked.
+expect {
+  "Login successful" {
+    send_user "Login successful!\n"
+  }
+  timeout {
+    send_user "Login timed out or failed.\n"
+  }
+}
+
+# Exit `expect`.
+exit

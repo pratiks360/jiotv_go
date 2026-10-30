@@ -1,7 +1,8 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Set the working directory inside the container
 WORKDIR /app
+
 
 # Copy source files from the host computer to the container
 COPY go.mod ./
@@ -11,6 +12,7 @@ COPY pkg ./pkg
 COPY web ./web
 COPY internal ./internal
 COPY main.go ./main.go
+COPY VERSION ./VERSION
 
 # Build the Go app with optimizations
 RUN go build -ldflags="-s -w" -trimpath -o /app/jiotv_go .
@@ -39,4 +41,4 @@ EXPOSE 5001
 ENTRYPOINT ["./jiotv_go"]
 
 # Default arguments
-CMD ["serve", "--public"]
+CMD ["--skip-update-check", "serve", "--public"]

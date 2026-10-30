@@ -27,6 +27,14 @@ type Title struct {
 	Lang    string   `xml:"lang,attr"` // Language of the title
 }
 
+// Category XML tag for Programme XML tag in EPG
+// Category is the type of the programme or show being aired on the channel
+type Category struct {
+	XMLName xml.Name `xml:"category"`
+	Value   string   `xml:",chardata"` // Category of the programme
+	Lang    string   `xml:"lang,attr"` // Language of the category
+}
+
 // Desc represents Description XML tag for Programme XML tag in EPG
 type Desc struct {
 	XMLName xml.Name `xml:"desc"`
@@ -37,13 +45,14 @@ type Desc struct {
 // Programme XML tag structure for EPG
 // Each programme tag represents a show being aired on a channel
 type Programme struct {
-	XMLName xml.Name `xml:"programme"`    // XML tag name
-	Channel string   `xml:"channel,attr"` // Channel is attribute of programme tag
-	Start   string   `xml:"start,attr"`   // Start time of the programme
-	Stop    string   `xml:"stop,attr"`    // Stop time of the programme
-	Title   Title    `xml:"title"`        // Title of the programme
-	Desc    Desc     `xml:"desc"`         // Description of the programme
-	Icon    Icon     `xml:"icon"`         // Icon of the programme
+	XMLName  xml.Name `xml:"programme"`    // XML tag name
+	Channel  string   `xml:"channel,attr"` // Channel is attribute of programme tag
+	Start    string   `xml:"start,attr"`   // Start time of the programme
+	Stop     string   `xml:"stop,attr"`    // Stop time of the programme
+	Title    Title    `xml:"title"`        // Title of the programme
+	Desc     Desc     `xml:"desc"`         // Description of the programme
+	Category Category `xml:"category"`     // Category of the programme
+	Icon     Icon     `xml:"icon"`         // Icon of the programme
 }
 
 // EPG XML tag structure
@@ -71,15 +80,15 @@ type ChannelsResponse struct {
 
 // EPGObject represents Individual EPG detail from JioTV EPG API response
 type EPGObject struct {
-	StartEpoch   EpochString `json:"startEpoch"`       // Start time of the programme
-	EndEpoch     EpochString `json:"endEpoch"`         // End time of the programme
-	ChannelID    uint16      `json:"channel_id"`       // Channel ID
-	ChannelName  string      `json:"channel_name"`     // Channel name
-	ShowCategory string      `json:"showCategory"`     // Category of the show
-	Description  string      `json:"description"`      // Description of the show
-	Title        string      `json:"showname"`         // Title of the show
-	Thumbnail    string      `json:"episodeThumbnail"` // Thumbnail of the show
-	Poster       string      `json:"episodePoster"`    // Poster of the show
+	StartEpoch   int64  `json:"startEpoch"`       // Start time of the programme
+	EndEpoch     int64  `json:"endEpoch"`         // End time of the programme
+	ChannelID    uint16 `json:"channel_id"`       // Channel ID
+	ChannelName  string `json:"channel_name"`     // Channel name
+	ShowCategory string `json:"showCategory"`     // Category of the show
+	Description  string `json:"description"`      // Description of the show
+	Title        string `json:"showname"`         // Title of the show
+	Thumbnail    string `json:"episodeThumbnail"` // Thumbnail of the show
+	Poster       string `json:"episodePoster"`    // Poster of the show
 }
 
 // EPGResponse represents EPG details from JioTV EPG API response

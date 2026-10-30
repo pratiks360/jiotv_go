@@ -7,52 +7,71 @@ import (
 	"encoding/xml"
 	"fmt"
 	"math/big"
-	"strconv"
 
 	"os"
 	"sync"
 	"time"
 
-	"github.com/rabilrbl/jiotv_go/v3/pkg/utils"
+	"github.com/jiotv-go/jiotv_go/v3/internal/constants/headers"
+	"github.com/jiotv-go/jiotv_go/v3/internal/constants/tasks"
+	"github.com/jiotv-go/jiotv_go/v3/internal/constants/urls"
+	"github.com/jiotv-go/jiotv_go/v3/pkg/scheduler"
+	"github.com/jiotv-go/jiotv_go/v3/pkg/utils"
 	"github.com/schollz/progressbar/v3"
 	"github.com/valyala/fasthttp"
 )
 
 const (
 	// URL for fetching channels from JioTV API
-	CHANNEL_URL = "https://jiotv.data.cdn.jio.com/apis/v3.0/getMobileChannelList/get/?os=android&devicetype=phone&usertype=tvYR7NSNn7rymo3F"
+	CHANNEL_URL = urls.ChannelURL
 	// URL for fetching EPG data for individual channels from JioTV API
-	EPG_URL = "https://jiotv.data.cdn.jio.com/apis/v1.3/getepg/get/?offset=%d&channel_id=%d"
+	EPG_URL = urls.EPGURL
+	// EPG_POSTER_URL
+	EPG_POSTER_URL = urls.EPGPosterURL
+	// EPG_TASK_ID is the ID of the EPG generation task
+	EPG_TASK_ID = tasks.EPGTaskID
+	// Default values for random scheduling when crypto/rand fails
+	defaultRandomHour   = 2
+	defaultRandomMinute = 30
 )
 
 // Init initializes EPG generation and schedules it for the next day.
 func Init() {
-	epgFile := "epg.xml.gz"
+	epgFile := utils.GetPathPrefix() + "epg.xml.gz"
 	var lastModTime time.Time
 	flag := false
 	utils.Log.Println("Checking EPG file")
-	if stat, err := os.Stat(epgFile); err == nil {
+
+	// Check file existence and get file info
+	fileResult := utils.CheckAndReadFile(epgFile)
+	if fileResult.Exists {
 		// If file was modified today, don't generate new EPG
 		// Else generate new EPG
-		lastModTime = stat.ModTime()
-		fileDate := lastModTime.Format("2006-01-02")
-		todayDate := time.Now().Format("2006-01-02")
-		if fileDate == todayDate {
-			utils.Log.Println("EPG file is up to date.")
-		} else {
-			utils.Log.Println("EPG file is old.")
-			flag = true
+		if stat, err := os.Stat(epgFile); err == nil {
+			lastModTime = stat.ModTime()
+			fileDate := lastModTime.Format("2006-01-02")
+			todayDate := time.Now().Format("2006-01-02")
+			if fileDate == todayDate {
+				utils.Log.Println("EPG file is up to date.")
+			} else {
+				utils.Log.Println("EPG file is old.")
+				flag = true
+			}
 		}
 	} else {
 		utils.Log.Println("EPG file doesn't exist")
 		flag = true
 	}
 
-	genepg := func() {
+	genepg := func() error {
 		fmt.Println("\tGenerating new EPG file... Please wait.")
-		if err := GenXMLGz(epgFile); err != nil {
-			utils.Log.Fatal(err)
+		err := GenXMLGz(epgFile)
+		if err != nil {
+			utils.Log.Printf("ERROR: Failed to generate EPG file: %v", err)
+			fmt.Println("\tEPG file generation failed. Server will continue running without EPG.")
+			return nil
 		}
+		return nil
 	}
 
 	if flag {
@@ -61,23 +80,27 @@ func Init() {
 	// setup random time to avoid server load
 	random_hour_bigint, err := rand.Int(rand.Reader, big.NewInt(3))
 	if err != nil {
-		panic(err)
+		utils.Log.Printf("ERROR: Failed to generate random hour: %v", err)
+		// Use default values if random generation fails
+		random_hour_bigint = big.NewInt(defaultRandomHour)
 	}
 	random_min_bigint, err := rand.Int(rand.Reader, big.NewInt(60))
 	if err != nil {
-		panic(err)
+		utils.Log.Printf("ERROR: Failed to generate random minute: %v", err)
+		// Use default values if random generation fails
+		random_min_bigint = big.NewInt(defaultRandomMinute)
 	}
 	random_hour := int(-5 + random_hour_bigint.Int64()) // random number between 1 and 5
 	random_min := int(-30 + random_min_bigint.Int64())  // random number between 0 and 59
 	time_now := time.Now()
 	schedule_time := time.Date(time_now.Year(), time_now.Month(), time_now.Day()+1, random_hour, random_min, 0, 0, time.UTC)
 	utils.Log.Println("Scheduled EPG generation on", schedule_time.Local())
-	go utils.ScheduleFunctionCall(genepg, schedule_time)
+	go scheduler.Add(EPG_TASK_ID, time.Until(schedule_time), genepg)
 }
 
 // NewProgramme creates a new Programme with the given parameters.
-func NewProgramme(channelID int, start, stop, title, desc, iconSrc string) Programme {
-	iconURL := fmt.Sprintf("/jtvposter/%s", iconSrc)
+func NewProgramme(channelID int, start, stop, title, desc, category, iconSrc string) Programme {
+	iconURL := fmt.Sprintf("%s/%s", EPG_POSTER_URL, iconSrc)
 	return Programme{
 		Channel: fmt.Sprint(channelID),
 		Start:   start,
@@ -88,6 +111,10 @@ func NewProgramme(channelID int, start, stop, title, desc, iconSrc string) Progr
 		},
 		Desc: Desc{
 			Value: desc,
+			Lang:  "en",
+		},
+		Category: Category{
+			Value: category,
 			Lang:  "en",
 		},
 		Icon: Icon{
@@ -104,22 +131,28 @@ func genXML() ([]byte, error) {
 	// Create channels and programmes slices with initial capacity
 	var channels []Channel
 	var programmes []Programme
+	var programmesMu sync.Mutex
 
 	// Define a worker function for fetching EPG data
 	fetchEPG := func(channel Channel, bar *progressbar.ProgressBar) {
+		var channelProgrammes []Programme
 		req := fasthttp.AcquireRequest()
-		req.Header.SetUserAgent("okhttp/4.2.2")
+		req.Header.SetUserAgent(headers.UserAgentOkHttp)
 		defer fasthttp.ReleaseRequest(req)
 
 		resp := fasthttp.AcquireResponse()
 
-		for offset := -1; offset < 2; offset++ {
+		for offset := 0; offset < 2; offset++ {
 			reqUrl := fmt.Sprintf(EPG_URL, offset, channel.ID)
 			req.SetRequestURI(reqUrl)
 
 			if err := client.Do(req, resp); err != nil {
 				// Handle error
 				utils.Log.Printf("Error fetching EPG for channel %d, offset %d: %v", channel.ID, offset, err)
+				continue
+			}
+			if status := resp.StatusCode(); status != fasthttp.StatusOK {
+				utils.Log.Printf("Error fetching EPG for channel %d, offset %d: HTTP status %d", channel.ID, offset, status)
 				continue
 			}
 
@@ -133,43 +166,32 @@ func genXML() ([]byte, error) {
 			}
 
 			for _, programme := range epgResponse.EPG {
-				start, err := strconv.ParseInt(programme.StartEpoch.String(), 10, 64)
-				if err != nil {
-					utils.Log.Printf("Error parsing start epoch for channel %d, offset %d: %v", channel.ID, offset, err)
-					continue
-				}
-				end, err := strconv.ParseInt(programme.EndEpoch.String(), 10, 64)
-				if err != nil {
-					utils.Log.Printf("Error parsing end epoch for channel %d, offset %d: %v", channel.ID, offset, err)
-					continue
-				}
-				startTime := formatTime(time.Unix(start, 0))
-				endTime := formatTime(time.Unix(end, 0))
-				programmes = append(programmes, NewProgramme(channel.ID, startTime, endTime, programme.Title, programme.Description, programme.Poster))
+				startTime := formatTime(time.UnixMilli(programme.StartEpoch))
+				endTime := formatTime(time.UnixMilli(programme.EndEpoch))
+				channelProgrammes = append(channelProgrammes, NewProgramme(channel.ID, startTime, endTime, programme.Title, programme.Description, programme.ShowCategory, programme.Poster))
 			}
 		}
+		programmesMu.Lock()
+		programmes = append(programmes, channelProgrammes...)
+		programmesMu.Unlock()
 		bar.Add(1)
 		fasthttp.ReleaseResponse(resp)
 	}
 
 	// Fetch channels data
-	req := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(req)
-
-	req.SetRequestURI(CHANNEL_URL)
-	resp := fasthttp.AcquireResponse()
-
 	utils.Log.Println("Fetching channels")
-	if err := client.Do(req, resp); err != nil {
-		utils.Log.Fatal(err)
-		return nil, err
+	resp, err := utils.MakeHTTPRequest(utils.HTTPRequestConfig{
+		URL:    CHANNEL_URL,
+		Method: "GET",
+	}, client)
+	if err != nil {
+		return nil, utils.LogAndReturnError(err, "Failed to fetch channels")
 	}
 	defer fasthttp.ReleaseResponse(resp)
 
 	var channelsResponse ChannelsResponse
-	if err := json.Unmarshal(resp.Body(), &channelsResponse); err != nil {
-		utils.Log.Fatal(err)
-		return nil, err
+	if err := utils.ParseJSONResponse(resp, &channelsResponse); err != nil {
+		return nil, utils.LogAndReturnError(err, "Failed to parse channels response")
 	}
 
 	for _, channel := range channelsResponse.Channels {
@@ -204,6 +226,9 @@ func genXML() ([]byte, error) {
 	}
 	close(channelQueue)
 	wg.Wait()
+	if len(programmes) == 0 {
+		return nil, fmt.Errorf("no EPG programmes were fetched")
+	}
 
 	utils.Log.Println("Fetched programmes")
 	// Create EPG and marshal it to XML
@@ -230,6 +255,10 @@ func GenXMLGz(filename string) error {
 	if err != nil {
 		return err
 	}
+	// Add XML header
+	xmlHeader := `<?xml version="1.0" encoding="UTF-8"?>
+	<!DOCTYPE tv SYSTEM "http://www.w3.org/2006/05/tv">`
+	xml = append([]byte(xmlHeader), xml...)
 	// write to file
 	f, err := os.Create(filename)
 	if err != nil {

@@ -8,18 +8,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rabilrbl/jiotv_go/v3/pkg/utils"
+	"github.com/jiotv-go/jiotv_go/v3/internal/config"
+	"github.com/jiotv-go/jiotv_go/v3/pkg/utils"
 )
 
 var PID_FILE_NAME = ".jiotv_go.pid"
-var PID_FILE_PATH = utils.GetPathPrefix() + PID_FILE_NAME
+
+func getPIDPath() string {
+	return utils.GetPathPrefix() + PID_FILE_NAME
+}
 
 // RunInBackground starts the JioTV Go server as a background process by
 // executing the current binary with the provided arguments. It stores the
 // process ID in a file in the user's home directory so it can be stopped later.
 // Returns any errors encountered while starting the process.
-func RunInBackground(args string) error {
+func RunInBackground(args string, configPath string) error {
+	if err := config.Cfg.Load(configPath); err != nil {
+		return err
+	}
+
 	fmt.Println("Starting JioTV Go server in background...")
+	pidPath := getPIDPath()
 
 	// Get the path of the current binary executable
 	binaryExecutablePath, err := os.Executable()
@@ -27,10 +36,17 @@ func RunInBackground(args string) error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	cmdArgs := strings.Fields(args)
-	cmdArgs = append(cmdArgs, "--skip-update-check")
+	// --skip-update-check and --config are global flags: urfave/cli accepts them
+	// only before the subcommand, so they must precede "serve".
+	cmdArgs := []string{"--skip-update-check"}
+	if configPath != "" && !strings.Contains(args, "--config") {
+		cmdArgs = append(cmdArgs, "--config", configPath)
+	}
+	cmdArgs = append(cmdArgs, "serve")
+	cmdArgs = append(cmdArgs, strings.Fields(args)...)
+
 	// Run JioTVServer function as a separate process
-	cmd := exec.Command(binaryExecutablePath, append([]string{"serve"}, cmdArgs...)...)
+	cmd := exec.Command(binaryExecutablePath, cmdArgs...)
 	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start command: %w", err)
@@ -39,28 +55,39 @@ func RunInBackground(args string) error {
 	// Store the PID in a file
 	pid := cmd.Process.Pid
 	// skipcq: GSC-G302
-	err = os.WriteFile(PID_FILE_PATH, []byte(strconv.Itoa(pid)), 0644)
+	err = os.WriteFile(pidPath, []byte(strconv.Itoa(pid)), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write PID file: %w", err)
 	}
-
-	// Wait for 1 second to allow the server to start
-	time.Sleep(1 * time.Second)
+	// Surface an immediate crash (bad flags, port in use) instead of reporting
+	// a success for a process that is already gone.
+	waitResult := make(chan error, 1)
+	go func() { waitResult <- cmd.Wait() }()
+	select {
+	case waitErr := <-waitResult:
+		os.Remove(pidPath)
+		return fmt.Errorf("server exited immediately after start: %w", waitErr)
+	case <-time.After(1 * time.Second):
+	}
 
 	fmt.Println("JioTV Go server started successfully in background.")
 
 	return nil
 }
 
-
 // StopBackground stops the background JioTV Go server process that was previously
 // started with RunInBackground. It reads the PID from the PID file, sends a kill
 // signal to that process, and deletes the PID file. Returns any errors encountered.
-func StopBackground() error {
+func StopBackground(configPath string) error {
+	if err := config.Cfg.Load(configPath); err != nil {
+		return err
+	}
+
 	fmt.Println("Stopping JioTV Go server running in background...")
+	pidPath := getPIDPath()
 
 	// Read the PID from the file
-	pidBytes, err := os.ReadFile(PID_FILE_PATH)
+	pidBytes, err := os.ReadFile(pidPath)
 	if err != nil {
 		return fmt.Errorf("failed to read PID file: %w", err)
 	}
@@ -84,7 +111,7 @@ func StopBackground() error {
 	}
 
 	// Remove the PID file after successfully killing the process
-	err = os.Remove(PID_FILE_PATH)
+	err = os.Remove(pidPath)
 	if err != nil {
 		return fmt.Errorf("failed to remove PID file: %w", err)
 	}

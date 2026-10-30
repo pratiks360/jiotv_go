@@ -46,7 +46,7 @@ case $ARCH in
     "x86_64")
         ARCH="amd64"
         ;;
-    "aarch64")
+    "aarch64" | "arm64")
         ARCH="arm64"
         ;;
     "i386" | "i686")
@@ -64,7 +64,7 @@ esac
 echo "Step 2: Identified processor architecture as $ARCH"
 
 # Step 3: Fetch the latest binary
-BINARY_URL="https://github.com/rabilrbl/jiotv_go/releases/latest/download/jiotv_go-$OS-$ARCH"
+BINARY_URL="https://github.com/jiotv-go/jiotv_go/releases/latest/download/jiotv_go-$OS-$ARCH"
 echo "Step 3: Fetching the latest binary from $BINARY_URL"
 # If any existing binary is present, delete it
 if [[ -f "jiotv_go" ]]; then

@@ -3,25 +3,13 @@ package utils
 // JIOTV_CREDENTIALS represents JioTV Go credentials.
 // Includes some mandatory header values required for making requests to JioTV API
 type JIOTV_CREDENTIALS struct {
-	SSOToken             string `json:"ssoToken"`
-	UniqueID             string `json:"uniqueId"`
-	CRM                  string `json:"crm"`
-	AccessToken          string `json:"accessToken"`
-	RefreshToken         string `json:"refreshToken"`
-	LastTokenRefreshTime string `json:"lastTokenRefreshTime"`
-}
-
-// LoginPasswordPayload represents Request payload for password based login
-type LoginPasswordPayload struct {
-	// Username or phone number of the Jio account
-	Identifier string `json:"identifier"`
-	// Password of the Jio account
-	Password string `json:"password"`
-	// Remember user after login
-	RememberUser         string                 `json:"rememberUser"`
-	UpgradeAuth          string                 `json:"upgradeAuth"`
-	ReturnSessionDetails string                 `json:"returnSessionDetails"`
-	DeviceInfo           LoginPayloadDeviceInfo `json:"deviceInfo"`
+	SSOToken                string `json:"ssoToken"`
+	UniqueID                string `json:"uniqueId"`
+	CRM                     string `json:"crm"`
+	AccessToken             string `json:"accessToken"`
+	RefreshToken            string `json:"refreshToken"`
+	LastTokenRefreshTime    string `json:"lastTokenRefreshTime"`
+	LastSSOTokenRefreshTime string `json:"lastSSOTokenRefreshTime"`
 }
 
 // LoginOTPPayload represents Request payload for OTP based login

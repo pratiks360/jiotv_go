@@ -41,13 +41,48 @@ JioTV Go offers a convenient M3U playlist endpoint to enhance your IPTV experien
     ```
 	
 	This will filter only the specified languages (Tamil, English and Bengali).
+
+   The playlist will be split into categories like `Movies`, `Enterntainment`, `News`, `Music`, etc. but will only contain channels in the specified languages.
 	
 	Available Languages to filter `Hindi, Marathi, Punjabi, Urdu, Bengali, English, Malayalam, Tamil, Gujarati, Odia, Telugu, Bhojpuri, Kannada, Assamese, Nepali, French, Other`
+
+5. If you would like to group the M3U playlist by language only, append the `c=language` query parameter:
+
+    ```
+    http://localhost:5001/playlist.m3u?c=language
+    ```
+
+    This will group the playlist by language only, like `Hindi`, `Kannada`, `Marathi`, etc.
+
+   Please note that either `c=split` or `c=language` can be used at a time.
+
+6. If you would like to skip one or more genre from playlist, you can use  `sg=Educational,Lifestyle`
+   ```
+   http://localhost:5001/playlist.m3u?sg=Educational,Lifestyle
+   ```
+
+   This will skip all channels from provided list of genres.
+
+7. If you would like to hide channels that require a separate subscription, append the `sub=hide` query parameter:
+
+   ```
+   http://localhost:5001/playlist.m3u?sub=hide
+   ```
+
+   This is the playlist equivalent of the "Hide channels requiring a separate subscription" checkbox on the home page. Use `sub=only` for the inverse, a playlist containing nothing but the channels that need a subscription.
+
+   Any other value, including leaving `sub` out entirely, returns the full playlist.
 
 For both specific quality and split category, append the `q=` and `c=` query parameters:
 
 ```
 http://localhost:5001/playlist.m3u?q=high&c=split
+```
+
+You can also combine the language grouping, language filtering and subscription filtering:
+
+```
+http://localhost:5001/playlist.m3u?c=language&l=Hindi,Kannada,Marathi&sub=hide
 ```
 
 

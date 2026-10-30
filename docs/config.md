@@ -22,7 +22,7 @@ An EPG is an electronic program guide, an interactive on-screen menu that displa
 | ----- | ------------ | -------------------- | ------- |
 | Enable or disable debug mode. | `debug` | `JIOTV_DEBUG` | `false` |
 
-Debug mode enables additional logging and debugging features for developers. It is recommended to disable debug mode if you are not a developer.
+When `debug: true`, logging becomes more verbose, including file and line numbers for log messages, and the log prefix is set to `[DEBUG]`. This option works in conjunction with `log_to_stdout` and `log_path` to control the overall logging behavior. It is recommended to disable debug mode for regular use unless you are troubleshooting issues.
 
 ### TS Handler:
 
@@ -50,12 +50,11 @@ Simply put, the logout feature allows you to log out of your JioTV account in th
 
 | Purpose | Config Value | Environment Variable | Default |
 | ----- | ------------ | -------------------- | ------- |
-| Enable or disable DRM. | `drm` | `JIOTV_DRM` | `false` |
+| Enable or disable DRM. | `drm` | `JIOTV_DRM` | `true` |
 
-DRM is a method of restricting access to copyrighted. The latest version of JioTV App uses DRM.
-For future compatibility, I have added this feature.
+DRM is a method of restricting access to copyrighted data. The latest version of JioTV App uses DRM.
 
-Currently, the DRM is only supported by the web interface. It is not supported by the IPTV playlist.
+For more detailed information about the DRM feature, including setup and limitations, please see [DRM Documentation](./drm.md).
 
 ### Title:
 
@@ -97,6 +96,63 @@ All Other Proxy (user:pass@host:port).
 
 If your proxy does not require authentication, you can omit the `user:pass@` part.
 
+### Log Path:
+
+| Purpose | Config Value | Environment Variable | Default |
+| ----- | ------------ | -------------------- | ------- |
+| Directory for storing log files. | `log_path` | `JIOTV_LOG_PATH` | `""` (empty string) |
+
+This option specifies the directory where the `jiotv_go.log` file will be stored.
+If `log_path` is not set (i.e., an empty string), log files will be stored in a default location, which is typically under the directory specified by `path_prefix` (if set), or `$HOME/.jiotv_go/` if `path_prefix` is also not set.
+If a custom path is provided, the application will attempt to create the directory if it doesn't exist.
+
+### Log to Stdout:
+
+| Purpose | Config Value | Environment Variable | Default |
+| ----- | ------------ | -------------------- | ------- |
+| Enable or disable logging to standard output. | `log_to_stdout` | `JIOTV_LOG_TO_STDOUT` | `false` |
+
+This option controls whether log messages are also output to the standard output (the console).
+Set to `true` to see logs in your terminal, or `false` to suppress console logging. The default value is `false` when specified in a configuration file.
+
+### Custom Channels:
+
+| Purpose | Config Value | Environment Variable | Default |
+| ----- | ------------ | -------------------- | ------- |
+| Path to custom channels configuration file. | `custom_channels_file` | `JIOTV_CUSTOM_CHANNELS_FILE` | `""` (empty string) |
+
+This option specifies the path to a JSON or YAML file containing custom channel definitions that will be integrated with JioTV channels. Custom channels will appear in the web interface and IPTV playlists alongside standard JioTV channels. If the file is not found or contains errors, the server will continue to work with only JioTV channels.
+
+For detailed information about custom channels configuration, including file format, field descriptions, and usage examples, please see [Custom Channels Documentation](./CUSTOM_CHANNELS.md).
+
+### Default Categories and Languages:
+
+| Purpose | Config Value | Environment Variable | Default |
+| ----- | ------------ | -------------------- | ------- |
+| Default categories to display on the web interface when no filters are applied. | `default_categories` | `JIOTV_DEFAULT_CATEGORIES` | `[]` (empty array) |
+| Default languages to display on the web interface when no filters are applied. | `default_languages` | `JIOTV_DEFAULT_LANGUAGES` | `[]` (empty array) |
+
+These options allow you to configure which categories and languages should be shown by default on the web interface when users haven't applied any filters. This provides a more curated experience while still allowing users to override these defaults through the filter interface.
+
+**Environment Variable Format**: When using environment variables for array values, specify them as comma-separated values without spaces. For example:
+```bash
+JIOTV_DEFAULT_CATEGORIES=5,6 JIOTV_DEFAULT_LANGUAGES=1,6
+```
+
+**Default Categories**: An array of category IDs to display by default. For example, `[8, 5]` would show only Sports and Entertainment channels by default.
+
+**Default Languages**: An array of language IDs to display by default. For example, `[1, 6]` would show only Hindi and English language channels by default.
+
+**Filtering Logic**: 
+- When both arrays are configured, channels must match at least one configured category AND one configured language
+- When only one array is configured, channels are filtered by that criteria only
+- When both arrays are empty or not configured, all channels are displayed (backward compatible behavior)
+- User interactions with filter dropdowns completely override the default configuration
+
+**Example Use Cases**:
+- Show only Entertainment and Movies channels in Hindi and English: `default_categories = [5, 6]`, `default_languages = [1, 6]`
+- Show all Sports channels regardless of language: `default_categories = [8]`, `default_languages = []`
+- Show all Hindi content regardless of category: `default_categories = []`, `default_languages = [1]`
 ## Example Configurations
 
 Below are example configuration file for JioTV Go. All fields are optional, and the values shown are the default settings:
@@ -107,7 +163,7 @@ You can also specify the path to the configuration file using the `--config` fla
 
 You can save the following configuration in a file named `jiotv_go.toml`. JioTV Go will automatically load the configuration from this file if it is present in the same directory as the binary.
 
-The file is also available at [configs/jiotv_go-config.toml](https://github.com/rabilrbl/jiotv_go/blob/main/configs/jiotv_go-config.toml).
+The file is also available at [configs/jiotv-config.toml](https://github.com/jiotv-go/jiotv_go/blob/main/configs/jiotv-config.toml).
 
 Omit the lines with `#` as they are comments. They are only for explanation purposes.
 
@@ -127,8 +183,8 @@ disable_ts_handler = false
 # Enable Or Disable Logout feature. Default: true
 disable_logout = false
 
-# Enable Or Disable DRM. As DRM is not supported by most of the players, it is disabled by default. Default: false
-drm = false
+# Enable Or Disable DRM. Default: true
+drm = true
 
 # Title of the webpage. Default: JioTV Go
 title = ""
@@ -142,6 +198,23 @@ path_prefix = ""
 
 # Proxy URL. Proxy is useful to bypass geo-restrictions and ip-restrictions for JioTV API. Default: ""
 proxy = ""
+
+# LogPath is the directory for log files. Default: "" (logs to default path like $HOME/.jiotv_go/jiotv_go.log)
+log_path = ""
+
+# LogToStdout controls logging to stdout/stderr. Default: false (when set in config)
+log_to_stdout = false
+
+# CustomChannelsFile is the path to custom channels configuration file. Default: ""
+custom_channels_file = ""
+
+# Default categories to display on the web interface when no filters are applied. Array of category IDs. Default: []
+# Example: default_categories = [8, 5] # Sports, Entertainment
+default_categories = []
+
+# Default languages to display on the web interface when no filters are applied. Array of language IDs. Default: []
+# Example: default_languages = [1, 6] # Hindi, English
+default_languages = []
 ```
 
 This example demonstrates how to customize the configuration parameters using TOML syntax. Feel free to modify the values based on your preferences and requirements.
@@ -150,25 +223,30 @@ This example demonstrates how to customize the configuration parameters using TO
 
 You can save the following configuration in a file named `jiotv_go.yaml`. 
 
-The file is also available at [configs/jiotv_go-config.yaml](https://github.com/rabilrbl/jiotv_go/blob/main/configs/jiotv_go-config.yaml).
+The file is also available at [configs/jiotv-config.yml](https://github.com/jiotv-go/jiotv_go/blob/main/configs/jiotv-config.yml).
 
 ```yaml
 epg: false
 debug: false
 disable_ts_handler: false
 disable_logout: false
-drm: false
+drm: true
 title: ""
 disable_url_encryption: false
 path_prefix: ""
 proxy: ""
+log_path: ""
+log_to_stdout: false
+custom_channels_file: ""
+default_categories: []
+default_languages: []
 ```
 
 ### Example JSON Configuration
 
 You can save the following configuration in a file named `jiotv_go.json`.
 
-The file is also available at [configs/jiotv_go-config.json](https://github.com/rabilrbl/jiotv_go/blob/main/configs/jiotv_go-config.json).
+The file is also available at [configs/jiotv-config.json](https://github.com/jiotv-go/jiotv_go/blob/main/configs/jiotv-config.json).
 
 ```json
 {
@@ -176,10 +254,15 @@ The file is also available at [configs/jiotv_go-config.json](https://github.com/
     "debug": false,
     "disable_ts_handler": false,
     "disable_logout": false,
-    "drm": false,
+    "drm": true,
     "title": "",
     "disable_url_encryption": false,
     "path_prefix": "",
-    "proxy": ""
+    "proxy": "",
+    "log_path": "",
+    "log_to_stdout": false,
+    "custom_channels_file": "",
+    "default_categories": [],
+    "default_languages": []
 }
 ```

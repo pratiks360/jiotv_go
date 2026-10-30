@@ -1,53 +1,68 @@
 package cmd
 
 import (
+	"fmt"
+	"log" // Added import for *log.Logger type
 	"net/http"
 
-	"github.com/rabilrbl/jiotv_go/v3/internal/config"
-	"github.com/rabilrbl/jiotv_go/v3/internal/handlers"
-	"github.com/rabilrbl/jiotv_go/v3/internal/middleware"
-	"github.com/rabilrbl/jiotv_go/v3/pkg/store"
-	"github.com/rabilrbl/jiotv_go/v3/pkg/epg"
-	"github.com/rabilrbl/jiotv_go/v3/pkg/secureurl"
-	"github.com/rabilrbl/jiotv_go/v3/pkg/utils"
-	"github.com/rabilrbl/jiotv_go/v3/web"
+	"github.com/jiotv-go/jiotv_go/v3/internal/config"
+	"github.com/jiotv-go/jiotv_go/v3/internal/constants"
+	"github.com/jiotv-go/jiotv_go/v3/internal/handlers"
+	"github.com/jiotv-go/jiotv_go/v3/internal/middleware"
+	"github.com/jiotv-go/jiotv_go/v3/pkg/epg"
+	"github.com/jiotv-go/jiotv_go/v3/pkg/scheduler"
+	"github.com/jiotv-go/jiotv_go/v3/pkg/utils"
+	"github.com/jiotv-go/jiotv_go/v3/web"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/etag"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
-	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/template/html/v2"
 )
 
+// LoadConfig loads the application configuration from the given path.
+func LoadConfig(configPath string) error {
+	return config.Cfg.Load(configPath)
+}
+
+// InitializeLogger initializes the global logger.
+// This should be called after LoadConfig.
+func InitializeLogger() {
+	utils.Log = utils.GetLogger()
+}
+
+// Logger returns the initialized global logger.
+// Ensure InitializeLogger has been called before using this.
+func Logger() *log.Logger { // Corrected to *log.Logger
+	return utils.Log
+}
+
+type JioTVServerConfig struct {
+	Host        string
+	Port        string
+	TLS         bool
+	TLSCertPath string
+	TLSKeyPath  string
+}
+
 // JioTVServer starts the JioTV server.
-// It loads the config, initializes logging, secure URLs, and EPG.
+// Assumes config and logger are already initialized.
+// It initializes secure URLs, EPG, store, and handlers.
 // It then configures the Fiber app with middleware and routes.
 // It starts listening on the provided host and port.
 // Returns an error if listening fails.
-func JioTVServer(host, port, configPath string, prefork bool) error {
-	// Load the config file
-	if err := config.Cfg.Load(configPath); err != nil {
-		return err
-	}
-	
-	// Initialize the logger object
-	utils.Log = utils.GetLogger()
-
-
-	// Initialize the store object
-	if err := store.Init(); err != nil {
-		return err
-	}
-
-	// Initialize the secureurl object
-	secureurl.Init()
+func JioTVServer(jiotvServerConfig JioTVServerConfig) error {
+	// Config, Logger and Store are assumed to be initialized in main.go
 
 	// if config EPG is true or file epg.xml.gz exists
 	if config.Cfg.EPG || utils.FileExists("epg.xml.gz") {
 		go epg.Init()
 	}
+
+	// Start Scheduler
+	scheduler.Init()
+	defer scheduler.Stop()
 
 	engine := html.NewFileSystem(http.FS(web.GetViewFiles()), ".html")
 	if config.Cfg.Debug {
@@ -56,13 +71,13 @@ func JioTVServer(host, port, configPath string, prefork bool) error {
 
 	app := fiber.New(fiber.Config{
 		Views:             engine,
-		Prefork:           prefork,
+		Network:           fiber.NetworkTCP,
 		StreamRequestBody: true,
 		CaseSensitive:     false,
 		StrictRouting:     false,
 		EnablePrintRoutes: false,
 		ServerHeader:      "JioTV Go",
-		AppName:           "JioTV Go",
+		AppName:           fmt.Sprintf("JioTV Go %s", constants.Version),
 	})
 
 	app.Use(recover.New(recover.Config{
@@ -83,15 +98,6 @@ func JioTVServer(host, port, configPath string, prefork bool) error {
 		Browse:     false,
 	}))
 
-	// Helmet middleware to set security headers
-	app.Use(helmet.New())
-
-	// ETag middleware to set ETag header for caching
-	app.Use(etag.New())
-
-	// Handle all /bpk-tv/* routes
-	app.Use("/bpk-tv/", handlers.BpkProxyHandler)
-
 	// Handle all /out/* routes
 	app.Use("/out/", handlers.SLHandler)
 
@@ -101,8 +107,9 @@ func JioTVServer(host, port, configPath string, prefork bool) error {
 	app.Get("/", handlers.IndexHandler)
 	app.Post("/login/sendOTP", handlers.LoginSendOTPHandler)
 	app.Post("/login/verifyOTP", handlers.LoginVerifyOTPHandler)
-	app.Post("/login", handlers.LoginPasswordHandler)
 	app.Get("/logout", handlers.LogoutHandler)
+	app.Get("/live/mpd/:channelID", handlers.LiveManifestMpdHandler)
+	app.Post("/live/key/:channelID", handlers.LiveManifestKeyHandler)
 	app.Get("/live/:id", handlers.LiveHandler)
 	app.Get("/live/:quality/:id", handlers.LiveQualityHandler)
 	app.Get("/render.m3u8", handlers.RenderHandler)
@@ -112,7 +119,15 @@ func JioTVServer(host, port, configPath string, prefork bool) error {
 	app.Get("/playlist.m3u", handlers.PlaylistHandler)
 	app.Get("/play/:id", handlers.PlayHandler)
 	app.Get("/player/:id", handlers.PlayerHandler)
-	app.Get("/clappr/:id", handlers.ClapprHandler)
+	app.Get("/premium/providers", handlers.PremiumProvidersHandler)
+	app.Get("/premium/providers/:id/catalog", handlers.PremiumProviderCatalogHandler)
+	app.Get("/premium/providers/:id/watch", handlers.PremiumProviderWatchHandler)
+	app.Get("/premium/providers/:id/play", handlers.PremiumProviderPlayHandler)
+	app.Get("/premium/player", handlers.PremiumPlayerHandler)
+	app.Get("/catchup/:id", handlers.CatchupHandler)
+	app.Get("/catchup/play/:id", handlers.CatchupPlayerHandler)
+	app.Get("/catchup/render/:id", handlers.CatchupRenderPlayerHandler)
+	app.Get("/catchup/stream/:id", handlers.CatchupStreamHandler)
 	app.Get("/favicon.ico", handlers.FaviconHandler)
 	app.Get("/jtvimage/:file", handlers.ImageHandler)
 	app.Get("/epg.xml.gz", handlers.EPGHandler)
@@ -122,5 +137,15 @@ func JioTVServer(host, port, configPath string, prefork bool) error {
 	app.Post("/drm", handlers.DRMKeyHandler)
 	app.Get("/dashtime", handlers.DASHTimeHandler)
 
-	return app.Listen(host + ":" + port)
+	app.Get("/render.mpd", handlers.MpdHandler)
+	app.Use("/render.dash", handlers.DashHandler)
+
+	if jiotvServerConfig.TLS {
+		if jiotvServerConfig.TLSCertPath == "" || jiotvServerConfig.TLSKeyPath == "" {
+			return fmt.Errorf("TLS cert and key paths are required for HTTPS. Please provide them using --tls-cert and --tls-key flags")
+		}
+		return app.ListenTLS(fmt.Sprintf("%s:%s", jiotvServerConfig.Host, jiotvServerConfig.Port), jiotvServerConfig.TLSCertPath, jiotvServerConfig.TLSKeyPath)
+	} else {
+		return app.Listen(fmt.Sprintf("%s:%s", jiotvServerConfig.Host, jiotvServerConfig.Port))
+	}
 }

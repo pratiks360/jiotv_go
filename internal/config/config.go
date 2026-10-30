@@ -3,7 +3,6 @@ package config
 import (
 	"log"
 	"os"
-	"path/filepath"
 	"reflect"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -21,7 +20,7 @@ type JioTVConfig struct {
 	DisableTSHandler bool `yaml:"disable_ts_handler" env:"JIOTV_DISABLE_TS_HANDLER" json:"disable_ts_handler" toml:"disable_ts_handler"`
 	// Enable Or Disable Logout feature. Default: true
 	DisableLogout bool `yaml:"disable_logout" env:"JIOTV_DISABLE_LOGOUT" json:"disable_logout" toml:"disable_logout"`
-	// Enable Or Disable DRM. As DRM is not supported by most of the players, it is disabled by default. Default: false
+	// Enable Or Disable DRM. Default: true
 	DRM bool `yaml:"drm" env:"JIOTV_DRM" json:"drm" toml:"drm"`
 	// Title of the webpage. Default: JioTV Go
 	Title string `yaml:"title" env:"JIOTV_TITLE" json:"title" toml:"title"`
@@ -31,6 +30,16 @@ type JioTVConfig struct {
 	Proxy string `yaml:"proxy" env:"JIOTV_PROXY" json:"proxy" toml:"proxy"`
 	// PathPrefix is the prefix for all file paths managed by JioTV Go. Default: "$HOME/.jiotv_go"
 	PathPrefix string `yaml:"path_prefix" env:"JIOTV_PATH_PREFIX" json:"path_prefix" toml:"path_prefix"`
+	// LogPath is the directory for log files. Default: ""
+	LogPath string `yaml:"log_path" env:"JIOTV_LOG_PATH" json:"log_path" toml:"log_path"`
+	// LogToStdout controls logging to stdout/stderr. Default: true
+	LogToStdout bool `yaml:"log_to_stdout" env:"JIOTV_LOG_TO_STDOUT" json:"log_to_stdout" toml:"log_to_stdout"`
+	// CustomChannelsFile is the path to custom channels configuration file. Default: ""
+	CustomChannelsFile string `yaml:"custom_channels_file" env:"JIOTV_CUSTOM_CHANNELS_FILE" json:"custom_channels_file" toml:"custom_channels_file"`
+	// DefaultCategories is the list of category IDs to display on the default web page. Default: []
+	DefaultCategories []int `yaml:"default_categories" env:"JIOTV_DEFAULT_CATEGORIES" json:"default_categories" toml:"default_categories"`
+	// DefaultLanguages is the list of language IDs to display on the default web page. Default: []
+	DefaultLanguages []int `yaml:"default_languages" env:"JIOTV_DEFAULT_LANGUAGES" json:"default_languages" toml:"default_languages"`
 }
 
 // Cfg is the global config variable
@@ -41,6 +50,9 @@ var Cfg JioTVConfig
 // If no file is found, it loads config from environment variables.
 // It logs messages about which config source is being used.
 func (c *JioTVConfig) Load(filename string) error {
+	// Set default value for DRM manually because cleanenv env-default on booleans overwrites explicit false values
+	c.DRM = true
+
 	if filename == "" {
 		filename = commonFileExists()
 	}
@@ -67,18 +79,14 @@ func (*JioTVConfig) Get(key string) interface{} {
 // commonFileExists checks for the existence of common config
 // file names and returns the first one found. It searches
 // for config files in the following formats:
-//   - jiotv_go.{yml,toml,json}
-//   - config.{json,yml,toml}
+//   - jiotv_go.{yml,toml,json,yaml}
+//   - config.{json,yml,toml,yaml}
 //
 // If no file is found, an empty string is returned.
 func commonFileExists() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Println("ERROR: Unable to get user home directory:", err)
-	}
-	pathPrefix := filepath.Join(homeDir, ".jiotv_go")
-	commonFiles := []string{"jiotv_go.yml", "jiotv_go.toml", "jiotv_go.json", "config.json", "config.yml", "config.toml", pathPrefix + "config.json", pathPrefix + "config.yml", pathPrefix + "config.toml"}
+	commonFiles := []string{"jiotv_go.yml", "jiotv_go.yaml", "jiotv_go.toml", "jiotv_go.json", "config.json", "config.yml", "config.toml", "config.yaml"}
 	for _, filename := range commonFiles {
+		// check above common files in current directory
 		if _, err := os.Stat(filename); err == nil {
 			return filename
 		}

@@ -2,11 +2,11 @@
 
 JioTV Go, an exciting project that allows you to stream Live TV channels on the web and IPTV. It's a web wrapper around the JioTV Android app, utilizing the same API to fetch and stream channels.
 
-Ready to dive in? Download the latest binary for your operating system from [here](https://github.com/rabilrbl/jiotv_go/releases/latest), and explore the [documentation](https://jiotv_go.rabil.me/) to start your JioTV Go adventure! 🚀
+Ready to dive in? Download the latest binary for your operating system from [here](https://github.com/jiotv-go/jiotv_go/releases/latest), and explore the [documentation](https://jiotv_go.rabil.me/) to start your JioTV Go adventure! 🚀
 
 _Give us 🌟 on GitHub if you like this project!_
 
-We have video tutorials for [Windows](https://youtu.be/BnNTYTSvVBc),  and [Android](https://youtu.be/ejiuml11g8o) users. Please watch them if you are unsure about the installation process.
+We have video tutorials for [Windows](https://youtu.be/BnNTYTSvVBc), and [Android](https://youtu.be/ejiuml11g8o) users. Please watch them if you are unsure about the installation process.
 
 ## Features 🌟
 
@@ -16,8 +16,7 @@ We have video tutorials for [Windows](https://youtu.be/BnNTYTSvVBc),  and [Andro
 - 📅 EPG (Electronic Program Guide) support in compressed GZipped XML or JSON format.
 - 🎥 Quality selection (Low, Medium, High) supported.
 - ⚙️ Configurable port and host.
-- 🔐 Authentication options using Jio ID/Number with password or Jio number with OTP.
-- 📺 Additional Sony channels from SonyLiv for convenience.
+- 🔐 Authentication using Jio number with OTP.
 - 👥 Support for multiple clients simultaneously.
 - 🚀 Written in Go, ensuring it's fast, lightweight, and portable.
 - 💻 Command-line interface for server management and self-update.
@@ -52,25 +51,15 @@ The complete documentation for JioTV Go is available at https://jiotv_go.rabil.m
 - [Announcement Channel (`jiotv_go`)](https://telegram.me/jiotv_go)
 - [Support Group (`jiotv_go_chat`)](https://telegram.me/jiotv_go_chat)
 
-## Star History
-
-<a href="https://star-history.com/#rabilrbl/jiotv_go&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rabilrbl/jiotv_go&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=rabilrbl/jiotv_go&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=rabilrbl/jiotv_go&type=Date" />
-  </picture>
-</a>
-
 ## Contributors
 
-[![Contributors](https://contributors-img.web.app/image?repo=rabilrbl/jiotv_go)](https://github.com/rabilrbl/jiotv_go/graphs/contributors)
+[![Contributors](https://contributors-img.web.app/image?repo=jiotv-go/jiotv_go)](https://github.com/jiotv-go/jiotv_go/graphs/contributors)
 
 ## Let's Make JioTV Go Better Together! 🤝
 
 ### **Report Bugs**
 
-Found a pesky bug? No worries! Please help us improve JioTV Go by creating an issue [here](https://github.com/rabilrbl/jiotv_go/issues/new). Be sure to include detailed steps to reproduce the bug, describe the expected behavior, and, if possible, attach screenshots. Your feedback is invaluable!
+Found a pesky bug? No worries! Please help us improve JioTV Go by creating an issue [here](https://github.com/jiotv-go/jiotv_go/issues/new/choose). Be sure to include detailed steps to reproduce the bug, describe the expected behavior, and, if possible, attach screenshots. Your feedback is invaluable!
 
 ### **Ready to Contribute? Join the Journey! 🚀**
 
